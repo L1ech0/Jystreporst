@@ -1,6 +1,7 @@
 # Jystreporst
 一个简单的渗透报告生成器
-
+偷懒神器
+适用于等保测评渗透测试
 使用方法
 先安装所需要的库
 pip install -r requirements.txt
