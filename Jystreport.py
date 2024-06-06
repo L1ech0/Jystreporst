@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QVBoxLayout, QHBoxLayout, QWidget, QFileDialog, 
     QTableWidget, QTableWidgetItem, QMessageBox
 )
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QPixmap, QImage
 from PyQt6.QtCore import Qt
 from docx import Document
 from docx.shared import Pt, RGBColor, Inches
@@ -19,8 +19,8 @@ class VulnerabilityReportApp(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("简易版等保渗透报告生成器 by L1ech0 v1.3")
-        self.setGeometry(100, 100, 1200, 700)
+        self.setWindowTitle("简易版等保渗透报告生成器 by L1ech0 v1.5")
+        self.setGeometry(100, 100, 100, 1200)
 
         self.vulnerabilities = []
 
@@ -109,9 +109,11 @@ class VulnerabilityReportApp(QMainWindow):
         self.entry_addr = self.create_form_row(form_layout, "漏洞地址：")
         self.text_desc = self.create_form_row(form_layout, "漏洞描述：", QTextEdit)
         self.text_suggestion = self.create_form_row(form_layout, "修补建议：", QTextEdit)
-        self.proof_image_path = None
+
+        self.proof_entries = []
         self.add_proof_button(form_layout, "漏洞证明：", "粘贴剪切板图片", self.paste_clipboard_image)
         self.entry_figure = self.create_form_row(form_layout, "图 例：")
+        self.add_figure_button(form_layout, "添加图例", self.add_figure)
 
         main_layout.addLayout(form_layout)
 
@@ -160,11 +162,20 @@ class VulnerabilityReportApp(QMainWindow):
     def add_proof_button(self, layout, label_text, button_text, button_callback):
         layout_h = QHBoxLayout()
         label = QLabel(label_text, self)
+        self.proof_thumbnail = QLabel(self)  # 用于显示缩略图
+        self.proof_thumbnail.setFixedSize(100, 100)
+        self.proof_thumbnail.setStyleSheet("border: 1px solid black;")
         button = QPushButton(button_text, self)
         button.clicked.connect(button_callback)
         layout_h.addWidget(label)
+        layout_h.addWidget(self.proof_thumbnail)
         layout_h.addWidget(button)
         layout.addLayout(layout_h)
+
+    def add_figure_button(self, layout, button_text, button_callback):
+        button = QPushButton(button_text, self)
+        button.clicked.connect(button_callback)
+        layout.addWidget(button)
 
     def add_vulnerability(self):
         name = self.entry_name.text()
@@ -172,11 +183,10 @@ class VulnerabilityReportApp(QMainWindow):
         addr = self.entry_addr.text()
         desc = self.text_desc.toPlainText().strip()
         suggestion = self.text_suggestion.toPlainText().strip()
-        proof_path = self.proof_image_path
-        figure = self.entry_figure.text()
+        proof_entries = self.proof_entries
         v_type = self.entry_type.currentText()
 
-        if not name or not level or not addr or not desc or not suggestion or not figure or not v_type:
+        if not name or not level or not addr or not desc or not suggestion or not v_type:
             QMessageBox.warning(self, "警告", "所有字段都是必填项")
             return
 
@@ -186,8 +196,7 @@ class VulnerabilityReportApp(QMainWindow):
             "漏洞地址": addr,
             "漏洞描述": desc,
             "修补建议": suggestion,
-            "漏洞证明": proof_path,
-            "图例": figure,
+            "漏洞证明": proof_entries,
             "漏洞类型": v_type
         })
 
@@ -202,7 +211,7 @@ class VulnerabilityReportApp(QMainWindow):
             self.table.setItem(row, 2, QTableWidgetItem(vuln["漏洞地址"]))
             self.table.setItem(row, 3, QTableWidgetItem(vuln["漏洞描述"]))
             self.table.setItem(row, 4, QTableWidgetItem(vuln["修补建议"]))
-            self.table.setItem(row, 5, QTableWidgetItem(vuln["图例"]))
+            self.table.setItem(row, 5, QTableWidgetItem(", ".join(entry["图例"] for entry in vuln["漏洞证明"])))
 
     def paste_clipboard_image(self):
         clipboard = QApplication.clipboard()
@@ -212,9 +221,16 @@ class VulnerabilityReportApp(QMainWindow):
             image = clipboard.image()
             temp_path = tempfile.mktemp(suffix=".png")
             image.save(temp_path)
-            self.proof_image_path = temp_path
+            self.proof_thumbnail.setPixmap(QPixmap.fromImage(image).scaled(100, 100, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            self.proof_entries.append({"路径": temp_path, "图例": ""})
         else:
             QMessageBox.warning(self, "警告", "剪切板中没有图片")
+
+    def add_figure(self):
+        figure_text = self.entry_figure.text().strip()
+        if figure_text and self.proof_entries:
+            self.proof_entries[-1]["图例"] = figure_text
+            self.entry_figure.clear()
 
     def on_table_select(self):
         selected_items = self.table.selectedItems()
@@ -229,9 +245,15 @@ class VulnerabilityReportApp(QMainWindow):
         self.entry_addr.setText(vuln["漏洞地址"])
         self.text_desc.setPlainText(vuln["漏洞描述"])
         self.text_suggestion.setPlainText(vuln["修补建议"])
-        self.proof_image_path = vuln["漏洞证明"]
-        self.entry_figure.setText(vuln["图例"])
+        self.proof_entries = vuln["漏洞证明"]
         self.entry_type.setCurrentText(vuln["漏洞类型"])
+
+        # 更新缩略图
+        if self.proof_entries:
+            pixmap = QPixmap(self.proof_entries[-1]["路径"]).scaled(100, 100, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            self.proof_thumbnail.setPixmap(pixmap)
+        else:
+            self.proof_thumbnail.clear()
 
     def update_vulnerability(self):
         selected_items = self.table.selectedItems()
@@ -246,11 +268,10 @@ class VulnerabilityReportApp(QMainWindow):
         addr = self.entry_addr.text()
         desc = self.text_desc.toPlainText().strip()
         suggestion = self.text_suggestion.toPlainText().strip()
-        proof_path = self.proof_image_path
-        figure = self.entry_figure.text()
+        proof_entries = self.proof_entries
         v_type = self.entry_type.currentText()
 
-        if not name or not level or not addr or not desc or not suggestion or not figure or not v_type:
+        if not name or not level or not addr or not desc or not suggestion or not v_type:
             QMessageBox.warning(self, "警告", "所有字段都是必填项")
             return
 
@@ -260,8 +281,7 @@ class VulnerabilityReportApp(QMainWindow):
             "漏洞地址": addr,
             "漏洞描述": desc,
             "修补建议": suggestion,
-            "漏洞证明": proof_path,
-            "图例": figure,
+            "漏洞证明": proof_entries,
             "漏洞类型": v_type
         })
 
@@ -369,23 +389,24 @@ class VulnerabilityReportApp(QMainWindow):
             run.font.size = Pt(12)
             run.font.name = '宋体'
             run._element.rPr.rFonts.set(qn('w:eastAsia'), '宋体')
-            if vuln["漏洞证明"] and os.path.exists(vuln["漏洞证明"]):
-                try:
-                    document.add_picture(vuln["漏洞证明"], width=Inches(4))
-                except Exception as e:
-                    p.add_run(f'插入图片失败: {vuln["漏洞证明"]}, 错误: {e}')
-            else:
-                p.add_run('无')
-
-            # 图例，变量小四字体
-            if vuln["图例"]:
-                p = document.add_paragraph()
-                self.set_paragraph_format(p)
-                p.alignment = 1  # 居中对齐
-                run = p.add_run(vuln["图例"])
-                run.font.size = Pt(12)
-                run.font.name = '宋体'
-                run._element.rPr.rFonts.set(qn('w:eastAsia'), '宋体')
+            for proof in vuln["漏洞证明"]:
+                if proof["路径"] and os.path.exists(proof["路径"]):
+                    try:
+                        document.add_picture(proof["路径"], width=Inches(4))
+                    except Exception as e:
+                        p = document.add_paragraph()
+                        self.set_paragraph_format(p)
+                        p.add_run(f'插入图片失败: {proof["路径"]}, 错误: {e}')
+                
+                # 图例，变量小四字体
+                if proof["图例"]:
+                    p = document.add_paragraph()
+                    self.set_paragraph_format(p)
+                    p.alignment = 1  # 居中对齐
+                    run = p.add_run(proof["图例"])
+                    run.font.size = Pt(12)
+                    run.font.name = '宋体'
+                    run._element.rPr.rFonts.set(qn('w:eastAsia'), '宋体')
 
             # 添加一个空行
             document.add_paragraph('')
@@ -412,7 +433,8 @@ class VulnerabilityReportApp(QMainWindow):
         self.entry_addr.clear()
         self.text_desc.clear()
         self.text_suggestion.clear()
-        self.proof_image_path = None
+        self.proof_entries = []
+        self.proof_thumbnail.clear()
         self.entry_figure.clear()
         self.entry_type.setCurrentIndex(0)
 
