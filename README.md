@@ -14,9 +14,9 @@ v1.5新功能<br>
 <br>
 使用方法<br>
 先安装所需要的库<br>
-pip install -r requirements.txt<br>
+pip3 install -r requirements.txt<br>
 输入命令打开gui<br>
-python STreport.py<br>
+python3 Jystreport.py<br>
 <img width="172" alt="image" src="https://github.com/L1ech0/Jystreporst/assets/110832755/ae1448b4-8d71-4549-b203-54763f4a3db9"><br>
 <img width="613" alt="image" src="https://github.com/L1ech0/Jystreporst/assets/110832755/fb77c8fb-51db-44a0-a967-e17034cac04e"><br>
 
